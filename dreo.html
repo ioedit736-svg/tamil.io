@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tamil.io - Social, Chat & Supabase</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
+        :root {
+            --bg-color: #000000;
+            --surface-color: #16181c;
+            --border-color: #2f3336;
+            --text-primary: #e7e9ea;
+            --text-secondary: #71767b;
+            --accent-color: #1d9bf0;
+            --accent-hover: #1a8cd8;
+            --danger: #f4212e;
+            --glass-bg: rgba(0, 0, 0, 0.85);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background: var(--bg-color); color: var(--text-primary); overflow: hidden; height: 100vh; display: flex; justify-content: center; }
+        a, button { cursor: pointer; text-decoration: none; border: none; background: none; color: inherit; outline: none; }
+        
+        /* Auth Screen */
+        #auth-view { position: fixed; inset: 0; background: var(--bg-color); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .auth-card { background: var(--surface-color); padding: 40px; border-radius: 20px; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid var(--border-color); text-align: center; }
+        .auth-card h1 { color: var(--accent-color); margin-bottom: 25px; font-weight: 700; font-size: 28px; }
+        .auth-card input { width: 100%; padding: 15px; margin-bottom: 15px; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 12px; font-size: 16px; outline: none; }
+        .btn-main { width: 100%; padding: 15px; background: var(--accent-color); color: #fff; font-weight: 600; border-radius: 30px; font-size: 16px; transition: 0.2s; }
+        .btn-main:hover { background: var(--accent-hover); }
+
+        /* App Layout */
+        #app { display: none; width: 100%; max-width: 1200px; height: 100vh; }
+        
+        /* Sidebar */
+        .sidebar { width: 275px; height: 100vh; padding: 20px; border-right: 1px solid var(--border-color); display: flex; flex-direction: column; position: fixed; }
+        .logo { font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 30px; padding: 10px; }
+        .logo span { color: var(--accent-color); }
+        .nav-link { display: flex; align-items: center; gap: 20px; padding: 15px; font-size: 18px; border-radius: 30px; transition: 0.2s; margin-bottom: 5px; font-weight: 400; }
+        .nav-link:hover { background: var(--surface-color); }
+        .nav-link svg { width: 26px; height: 26px; fill: currentColor; }
+        .nav-link.active { font-weight: 700; }
+
+        /* Main Content */
+        .main-content { margin-left: 275px; width: calc(100% - 275px); max-width: 600px; border-right: 1px solid var(--border-color); height: 100vh; overflow-y: auto; position: relative; scrollbar-width: none; }
+        .main-content::-webkit-scrollbar { display: none; }
+        
+        .header { position: sticky; top: 0; background: var(--glass-bg); backdrop-filter: blur(12px); padding: 15px 20px; font-size: 20px; font-weight: 700; z-index: 10; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+        .view { display: none; padding-bottom: 80px; }
+        .view.active { display: block; }
+
+        /* Create Post */
+        .create-post { padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; gap: 15px; }
+        .avatar { width: 48px; height: 48px; border-radius: 50%; background: var(--surface-color); display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 18px; color: var(--text-primary); overflow: hidden; flex-shrink: 0; }
+        .avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .post-input-area { flex: 1; }
+        .post-input-area textarea { width: 100%; background: transparent; border: none; color: var(--text-primary); font-size: 18px; resize: none; outline: none; min-height: 50px; margin-top: 10px; }
+        .preview-img { width: 100%; max-height: 300px; border-radius: 16px; object-fit: cover; margin-top: 15px; display: none; border: 1px solid var(--border-color); }
+        .post-tools { display: flex; justify-content: space-between; align-items: center; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color); }
+        .upload-btn { color: var(--accent-color); cursor: pointer; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; }
+        .btn-post { background: var(--accent-color); color: white; padding: 8px 20px; border-radius: 20px; font-weight: bold; font-size: 15px; }
+
+        /* Posts Stream */
+        .post { padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; gap: 15px; }
+        .post-content { flex: 1; min-width: 0; }
+        .post-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+        .user-name { font-weight: 700; color: var(--text-primary); }
+        .post-time { color: var(--text-secondary); font-size: 14px; }
+        .post-text { font-size: 15px; line-height: 1.5; word-wrap: break-word; white-space: pre-wrap; margin-bottom: 12px; }
+        .post-img { width: 100%; max-height: 500px; border-radius: 16px; object-fit: cover; border: 1px solid var(--border-color); margin-bottom: 12px; }
+
+        /* Profile Area (Full Ratio Picture Support) */
+        .profile-cover { height: 160px; background: linear-gradient(45deg, var(--accent-color), #8a2387); }
+        .profile-details { padding: 20px; position: relative; }
+        .profile-avatar-large { 
+            width: 130px; height: 130px; border-radius: 20px; border: 4px solid var(--bg-color); 
+            position: absolute; top: -65px; left: 20px; background: var(--surface-color); 
+            display: flex; justify-content: center; align-items: center; font-size: 40px; font-weight: bold; overflow: hidden; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .profile-avatar-large img { width: 100%; height: 100%; object-fit: contain; background: var(--surface-color); }
+        .profile-actions { display: flex; justify-content: flex-end; margin-bottom: 20px; height: 40px; }
+        .btn-outline { border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 20px; font-weight: 700; color: var(--text-primary); }
+        .profile-name { font-size: 22px; font-weight: 700; margin-top: 15px; }
+        .profile-bio { margin-top: 10px; font-size: 15px; line-height: 1.4; }
+
+        /* Public Chat Room Area */
+        .chat-container { display: flex; flex-direction: column; height: calc(100vh - 61px); }
+        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+        .chat-bubble { background: var(--surface-color); border: 1px solid var(--border-color); padding: 12px 16px; border-radius: 12px; max-width: 80%; }
+        .chat-bubble.self { background: var(--accent-color); color: white; align-self: flex-end; }
+        .chat-input-area { padding: 15px 20px; background: var(--bg-color); border-top: 1px solid var(--border-color); display: flex; gap: 10px; }
+        .chat-input-area input { flex: 1; background: var(--surface-color); border: 1px solid var(--border-color); padding: 12px 20px; border-radius: 25px; color: var(--text-primary); outline: none; }
+
+        /* Settings */
+        .settings-group { padding: 20px; border-bottom: 1px solid var(--border-color); }
+        .input-stylish { width: 100%; padding: 12px 15px; background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-primary); margin-bottom: 15px; outline: none; }
+
+        /* Mobile Nav */
+        .mobile-nav { display: none; position: fixed; bottom: 0; width: 100%; background: var(--glass-bg); backdrop-filter: blur(12px); border-top: 1px solid var(--border-color); z-index: 100; }
+        .mobile-nav-item { flex: 1; padding: 15px 0; display: flex; justify-content: center; align-items: center; color: var(--text-secondary); }
+        .mobile-nav-item.active { color: var(--text-primary); }
+        .mobile-nav-item svg { width: 24px; height: 24px; fill: currentColor; }
+
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .main-content { margin-left: 0; width: 100%; max-width: 100%; }
+            .mobile-nav { display: flex; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Auth View -->
+    <div id="auth-view">
+        <div class="auth-card">
+            <h1>Tamil.io</h1>
+            <input type="text" id="username" placeholder="Choose a Username">
+            <input type="password" id="password" placeholder="Create Password">
+            <button class="btn-main" onclick="auth()">Log In / Sign Up</button>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="app">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="logo"><span>Tamil.io</span></div>
+            <button class="nav-link active" onclick="nav('feed')" id="nav-feed">Home Feed</button>
+            <button class="nav-link" onclick="nav('chat')" id="nav-chat">Open Chat Room</button>
+            <button class="nav-link" onclick="viewMyProfile()" id="nav-profile">Profile</button>
+            <button class="nav-link" onclick="nav('settings')" id="nav-settings">Settings</button>
+        </div>
+
+        <div class="main-content">
+            <!-- Home Feed -->
+            <div id="view-feed" class="view active">
+                <div class="header">Home Feed</div>
+                <div class="create-post">
+                    <div id="current-user-avatar" class="avatar"></div>
+                    <div class="post-input-area">
+                        <textarea id="post-text" placeholder="What is happening?!"></textarea>
+                        <img id="post-preview" class="preview-img">
+                        <div class="post-tools">
+                            <label class="upload-btn">📷<input type="file" id="post-image" accept="image/*" style="display:none;" onchange="previewPostImage(event)"></label>
+                            <button class="btn-post" onclick="createPost()">Post</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="feed-container"></div>
+            </div>
+
+            <!-- Public Open Chat Room -->
+            <div id="view-chat" class="view">
+                <div class="header">🌐 All in Open Chat</div>
+                <div class="chat-container">
+                    <div class="chat-messages" id="chat-messages-box"></div>
+                    <div class="chat-input-area">
+                        <input type="text" id="chat-input" placeholder="Type a public message..." onkeypress="if(event.key==='Enter') sendPublicChat()">
+                        <button class="btn-post" onclick="sendPublicChat()">Send</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profile -->
+            <div id="view-profile" class="view">
+                <div class="header" id="profile-header-title">Profile</div>
+                <div class="profile-cover"></div>
+                <div class="profile-details">
+                    <div class="profile-avatar-large" id="prof-avatar-wrap"></div>
+                    <div class="profile-actions" id="prof-actions"></div>
+                    <div class="profile-name" id="prof-name">Username</div>
+                    <div class="profile-bio" id="prof-bio"></div>
+                </div>
+                <div id="profile-posts-container"></div>
+            </div>
+
+            <!-- Settings -->
+            <div id="view-settings" class="view">
+                <div class="header">Settings</div>
+                <div class="settings-group">
+                    <h3>Edit Profile</h3>
+                    <input type="text" id="edit-bio" class="input-stylish" placeholder="Update bio...">
+                    <label style="color:var(--text-secondary); font-size:14px; margin-bottom:5px; display:block;">Profile Picture (Full Ratio):</label>
+                    <input type="file" id="edit-avatar" accept="image/*" class="input-stylish">
+                    <button class="btn-main" onclick="saveProfile()">Save Profile</button>
+                </div>
+                <div class="settings-group">
+                    <button class="btn-main" style="background:var(--danger);" onclick="logout()">Log Out</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // SUPABASE CONFIGURATION
+        const SUPABASE_URL = "https://auhgzcgqqlqssgvulifd.supabase.co/rest/v1/poste";
+        const SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY_HERE"; // உங்கள் Supabase Anon Key-ஐ இங்கே இடவும்
+
+        let users = JSON.parse(localStorage.getItem('tio_users')) || {};
+        let posts = [];
+        let publicChats = JSON.parse(localStorage.getItem('tio_chats')) || [
+            {user: 'System', text: 'Welcome to tamil.io Open Chat!', time: '12:00 PM'}
+        ];
+        let currentUser = localStorage.getItem('tio_current_user');
+
+        // Supabase-லிருந்து Posts-ஐ fetch செய்தல்
+        async function fetchPostsFromSupabase() {
+            try {
+                let res = await fetch(SUPABASE_URL, {
+                    headers: {
+                        "apikey": SUPABASE_KEY,
+                        "Authorization": `Bearer ${SUPABASE_KEY}`
+                    }
+                });
+                if(res.ok) {
+                    let data = await res.json();
+                    posts = data.reverse(); // புதிய போஸ்ட்களை முதலில் காட்ட
+                    if(document.getElementById('view-feed').classList.contains('active')) {
+                        renderPosts(posts, 'feed-container');
+                    }
+                }
+            } catch (err) {
+                console.error("Supabase fetch error:", err);
+            }
+        }
+
+        // Supabase-ல் Post-ஐ சேமித்தல்
+        async function savePostToSupabase(newPost) {
+            try {
+                let res = await fetch(SUPABASE_URL, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "apikey": SUPABASE_KEY,
+                        "Authorization": `Bearer ${SUPABASE_KEY}`,
+                        "Prefer": "return=representation"
+                    },
+                    body: JSON.stringify(newPost)
+                });
+                if(res.ok) {
+                    fetchPostsFromSupabase();
+                }
+            } catch (err) {
+                console.error("Supabase save error:", err);
+            }
+        }
+
+        if (currentUser && users[currentUser]) {
+            document.getElementById('auth-view').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+            updateUserAvatarUI();
+            fetchPostsFromSupabase();
+            nav('feed');
+        }
+
+        function auth() {
+            let u = document.getElementById('username').value.trim();
+            let p = document.getElementById('password').value.trim();
+            if (!u || !p) return alert("Enter credentials");
+            if (!users[u]) {
+                users[u] = { password: p, bio: "Tamil.io User", avatar: "" };
+            } else if (users[u].password !== p) {
+                return alert("Incorrect Password!");
+            }
+            currentUser = u;
+            localStorage.setItem('tio_current_user', u);
+            document.getElementById('auth-view').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+            updateUserAvatarUI();
+            fetchPostsFromSupabase();
+            nav('feed');
+        }
+
+        function logout() { localStorage.removeItem('tio_current_user'); location.reload(); }
+
+        function updateUserAvatarUI() {
+            let u = users[currentUser];
+            let av = document.getElementById('current-user-avatar');
+            av.innerHTML = u && u.avatar ? `<img src="${u.avatar}">` : currentUser.charAt(0).toUpperCase();
+        }
+
+        function nav(viewId) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.getElementById(`view-${viewId}`).classList.add('active');
+            
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            if(document.getElementById(`nav-${viewId}`)) document.getElementById(`nav-${viewId}`).classList.add('active');
+            
+            if(viewId === 'feed') fetchPostsFromSupabase();
+            if(viewId === 'chat') renderPublicChat();
+            window.scrollTo(0,0);
+        }
+
+        let tempImg = "";
+        function previewPostImage(e) {
+            let f = e.target.files[0];
+            if(f) {
+                let r = new FileReader();
+                r.onload = ev => {
+                    tempImg = ev.target.result;
+                    let p = document.getElementById('post-preview');
+                    p.src = tempImg; p.style.display = 'block';
+                };
+                r.readAsDataURL(f);
+            }
+        }
+
+        function createPost() {
+            let txt = document.getElementById('post-text').value.trim();
+            if(!txt && !tempImg) return;
+            
+            let newPost = {
+                user: currentUser, 
+                text: txt, 
+                img: tempImg, 
+                time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+            };
+
+            savePostToSupabase(newPost);
+            
+            document.getElementById('post-text').value = '';
+            document.getElementById('post-preview').style.display = 'none';
+            tempImg = "";
+        }
+
+        function renderPosts(arr, containerId) {
+            let c = document.getElementById(containerId);
+            if(!arr || arr.length === 0) return c.innerHTML = "<div style='padding:30px; text-align:center; color:var(--text-secondary);'>No posts found.</div>";
+            
+            c.innerHTML = arr.map(p => {
+                let u = users[p.user] || {avatar: ''};
+                let avHTML = u.avatar ? `<img src="${u.avatar}">` : (p.user ? p.user.charAt(0).toUpperCase() : 'U');
+                let imgHTML = p.img ? `<img src="${p.img}" class="post-img">` : '';
+
+                return `
+                <div class="post">
+                    <div class="avatar" onclick="viewProfile('${p.user}')">${avHTML}</div>
+                    <div class="post-content">
+                        <div class="post-header">
+                            <span class="user-name" onclick="viewProfile('${p.user}')">${p.user}</span>
+                            <span class="post-time">${p.time}</span>
+                        </div>
+                        <div class="post-text">${p.text}</div>
+                        ${imgHTML}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function sendPublicChat() {
+            let input = document.getElementById('chat-input');
+            let txt = input.value.trim();
+            if(!txt) return;
+            publicChats.push({
+                user: currentUser, text: txt, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+            });
+            localStorage.setItem('tio_chats', JSON.stringify(publicChats));
+            input.value = '';
+            renderPublicChat();
+        }
+
+        function renderPublicChat() {
+            let box = document.getElementById('chat-messages-box');
+            box.innerHTML = publicChats.map(c => `
+                <div class="chat-bubble ${c.user === currentUser ? 'self' : ''}">
+                    <div style="font-size:12px; font-weight:bold; opacity:0.8; margin-bottom:3px;">${c.user}</div>
+                    <div>${c.text}</div>
+                </div>
+            `).join('');
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function viewMyProfile() { viewProfile(currentUser); }
+
+        function viewProfile(username) {
+            nav('profile');
+            let u = users[username];
+            if(!u) return;
+            document.getElementById('profile-header-title').innerText = username;
+            document.getElementById('prof-name').innerText = username;
+            document.getElementById('prof-bio').innerText = u.bio;
+            
+            let avWrap = document.getElementById('prof-avatar-wrap');
+            avWrap.innerHTML = u.avatar ? `<img src="${u.avatar}">` : username.charAt(0).toUpperCase();
+
+            let actions = document.getElementById('prof-actions');
+            if(username === currentUser) {
+                actions.innerHTML = `<button class="btn-outline" onclick="nav('settings')">Edit Profile</button>`;
+            } else {
+                actions.innerHTML = '';
+            }
+
+            let userPosts = posts.filter(p => p.user === username);
+            renderPosts(userPosts, 'profile-posts-container');
+        }
+
+        function saveProfile() {
+            let b = document.getElementById('edit-bio').value;
+            let f = document.getElementById('edit-avatar').files[0];
+            users[currentUser].bio = b || users[currentUser].bio;
+            
+            if(f) {
+                let r = new FileReader();
+                r.onload = e => {
+                    users[currentUser].avatar = e.target.result;
+                    localStorage.setItem('tio_users', JSON.stringify(users));
+                    updateUserAvatarUI(); viewMyProfile();
+                };
+                r.readAsDataURL(f);
+            } else {
+                localStorage.setItem('tio_users', JSON.stringify(users));
+                viewMyProfile();
+            }
+        }
+    </script>
+    <script src="in.js" ><</script>
+</body>
+</html>
